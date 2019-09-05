@@ -8,6 +8,7 @@ from tensorflow.keras.layers import (AveragePooling2D, BatchNormalization,
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model
 
+
 def build_baseline_model(class_number, img_shape):
     img = Input(shape=(*img_shape, 3))
 

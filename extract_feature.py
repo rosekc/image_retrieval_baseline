@@ -1,18 +1,16 @@
-import tensorflow as tf
-from tensorflow.keras.preprocessing.image import array_to_img, img_to_array, load_img
-from tensorflow.keras.models import load_model, Model
-from tensorflow.keras.layers import Input
-from tensorflow.keras import backend as K
-import numpy as np
-from model import build_model
-from data_loader import ImageDataLoader
-from transform import random_horizontal_flip
 import cv2
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Input
+from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.preprocessing.image import (array_to_img, img_to_array,
+                                                  load_img)
 
-
-def reshape(img):
-    img = img.resize((224, 224))
-    return img
+from data_loader import ImageDataLoader
+from transform import (image_crop, image_pad, random_flip,
+                       random_horizontal_flip, reshape, standardize,
+                       suit_for_min_shape)
 
 
 def build_feature_model(model):
@@ -29,13 +27,13 @@ def build_feature_model(model):
 
 
 def extract_feature(feature_model, data_loader):
-    data_iter = data_loader.flow()
+    data_iter = data_loader.val_flow()
 
     # features = base_model.predict_generator(data_iter)
     features = None
 
     for batch in data_iter:
-        batch_imgs = batch[0]
+        batch_imgs = np.array(batch[0])
         batch_features = tf.zeros((len(batch_imgs), *feature_model.output.shape[1:]))
 
         for flip in [0, 1]:
@@ -60,26 +58,31 @@ def extract_feature(feature_model, data_loader):
     return features
 
 
-def extract_feature_to_file(path, name, model):
-    data_loader = ImageDataLoader(path, transforms=transform, batch_size=64, shuffle=False)
+def extract_feature_to_file(path, name, model, transform):
+    data_loader = ImageDataLoader(path, name=name, transforms=transform, shuffle=False)
 
     features = extract_feature(model, data_loader)
     np.save(f'{name}_features.npy', features.numpy())
-    np.save(f'{name}_labels.npy', data_loader.labels)
-    np.save(f'{name}_cams.npy', data_loader.cams)
+
+def val_preprocess_image(img):
+    img = img_to_array(img)
+    img = image_crop(img, target_shape='largest_square', crop_mode='center')
+    img = reshape(img, (256, 256))
+    img = standardize(img)
+    return img
+
+def query_preprocess_image(img):
+    return img_to_array(img)
 
 
 if __name__ == "__main__":
-    from model import build_identification_model, build_triple_loss_model, build_baseline_model
-    from train_eager import val_preprocess_image
+    from model import build_baseline_model
 
     tf.enable_eager_execution()
 
     with K.learning_phase_scope(0):
-        transform = [val_preprocess_image]
-        model = build_baseline_model(751, (256, 128))
+        model = build_baseline_model(11, (256, 256))
         model.load_weights('checkpoint/120.h5')
         feature_model = build_feature_model(model)
-        extract_feature_to_file('../Market/query', 'query', feature_model)
-        extract_feature_to_file(
-            '../Market/bounding_box_test', 'gallery', feature_model)
+        extract_feature_to_file('.', 'query', feature_model, [query_preprocess_image])
+        extract_feature_to_file('.', 'gallery', feature_model, [val_preprocess_image])

@@ -16,10 +16,10 @@ def remove_mean(image):
     """
     remove RGB mean values which from ImageNet
     input
-        image:  RGB image np.ndarray 
+        image:  RGB image np.ndarray
                 type of elements is np.uint8
     return:
-        image:  remove RGB mean and scale to [0,1] 
+        image:  remove RGB mean and scale to [0,1]
                 type of elements is np.float32
     """
     mean = [0.48462227599918,  0.45624044862054, 0.40588363755159]
@@ -32,7 +32,7 @@ def standardize(image, mean=[0.48462227599918,  0.45624044862054, 0.405883637551
     """
     standardize RGB mean and std values which from ImageNet
     input:
-        image:  RGB image np.ndarray 
+        image:  RGB image np.ndarray
                 type of elements is np.uint8
     return:
         image:  standarded image
@@ -82,7 +82,7 @@ def contrast_adjust(image, alpha=1.3, beta=20):
 
 def random_flip(image, lr, ud):
     """
-    random flip image 
+    random flip image
     """
     if lr:
         if np.random.random() > 0.5:
@@ -93,7 +93,7 @@ def random_flip(image, lr, ud):
     return image
 
 
-def image_crop(image, crop=None, target_shape=None, random_crop=False):
+def image_crop_old(image, crop=None, target_shape=None, random_crop=False):
     """
     if crop is None crop size is generated with a random size range from [0.5*height,height]
     if random_crop == True image croped from a random position
@@ -114,29 +114,72 @@ def image_crop(image, crop=None, target_shape=None, random_crop=False):
     croped_img = image[th:th + crop[0], tw:tw + crop[1]]
     if target_shape:
         t_h, t_w = target_shape
-        croped_img = cv2.resize(croped_img, (t_w, t_h), interpolation=cv2.INTER_NEAREST)
+        croped_img = cv2.resize(croped_img, (t_w, t_h),
+                                interpolation=cv2.INTER_NEAREST)
     return croped_img
 
 
+def image_crop(image, target_shape=None, keep_aspect_ratio=False, crop_mode='random'):
+    """crop a image
+    
+    :param image: 
+    :type image: numpy array
+    :param target_shape: output shape, is a tuple or str, defaults to None
+    :type target_shape: str or tuple, optional
+    :param keep_aspect_ratio: keep aspect ratio, only use when target_shape is None, defaults to False
+    :type keep_aspect_ratio: bool, optional
+    :param crop_mode: how to crop image, defaults to 'random'
+    :type crop_mode: str, optional
+    """
+    h, w, _ = image.shape
+
+    # set target_shape
+    if target_shape is None:
+        ch = np.random.randint(h // 2,  h + 1)
+        if keep_aspect_ratio:
+            cw = math.floor(w * ch / h)
+        else:
+            cw = np.random.randint(w // 2,  w + 1)
+        target_shape=(ch, cw)
+    elif target_shape == 'largest_square':
+        max_width=np.min([h, w])
+        target_shape=(max_width, max_width)
+    elif target_shape == 'random_square':
+        max_width=np.min([h, w])
+        new_width = np.random.randint(max_width // 2,  max_width + 1)
+        target_shape=(new_width, new_width)
+    else:
+        raise TypeError(f'Unknow target shape: {target_shape}')
+
+    if crop_mode == 'center':
+        th, tw= ((s - t) // 2 for s, t in zip((h, w), target_shape))
+    elif crop_mode == 'random':
+        th = 0 if h - target_shape[0] == 0 else np.random.randint(0, h - target_shape[0])
+        tw = 0 if w - target_shape[1] == 0 else np.random.randint(0, w - target_shape[1])
+    else:
+        raise TypeError(f'Unknow crop mode: {crop_mode}')
+
+    croped_img=image[th:th + target_shape[0], tw:tw + target_shape[1]]
+    return croped_img
 
 def image_pad(image, pad_width=None, mode='symmetric', keep_shape=False):
     """
-    pad an image 
+    pad an image
     like np.pad way
     input:
         image: ndarray [rgb]
 
     """
-    hei, wid = image.shape[0], image.shape[1]
+    hei, wid=image.shape[0], image.shape[1]
 
     if pad_width is None:
-        th = hei//10
-        tw = wid//10
-        pad_width = ((th, th), (tw, tw), (0, 0))
+        th=hei//10
+        tw=wid//10
+        pad_width=((th, th), (tw, tw), (0, 0))
     if len(image.shape) == 3:
-        newimage = np.pad(image, pad_width, mode)
+        newimage=np.pad(image, pad_width, mode)
     elif len(image.shape) == 2:
-        newimage = np.squeeze(np.pad(image[:, :, np.newaxis], pad_width, mode))
+        newimage=np.squeeze(np.pad(image[:, :, np.newaxis], pad_width, mode))
 
     if keep_shape:
         return cv2.resize(newimage, (wid, hei), interpolation=cv2.INTER_NEAREST)
@@ -146,22 +189,22 @@ def image_pad(image, pad_width=None, mode='symmetric', keep_shape=False):
 # end of this copy
 
 def reshape(img, shape):
-    # input is (h, w), swap the h and w that suit for PIL
+    # input is (h, w), swap the h and w that suit for cv2
     h, w = shape
-    shape = w, h
-    img = img.resize(shape)
+    img = cv2.resize(img, (w, h),
+                                interpolation=cv2.INTER_NEAREST)
     return img
 
 def suit_for_min_shape(img, shape):
-    min_h, min_w = shape
-    img_w, img_h = img.size
+    min_h, min_w=shape
+    img_w, img_h=img.size
     if min_h <= img_h and min_h <= img_h:
         return img
-    h_scale = (min_h + 1) / img_h
-    w_scale = (min_w + 1) / img_w
-    scale = max([1.0, h_scale, w_scale])
-    new_h = math.ceil(img_h * scale)
-    new_w = math.ceil(img_w * scale)
+    h_scale=(min_h + 1) / img_h
+    w_scale=(min_w + 1) / img_w
+    scale=max([1.0, h_scale, w_scale])
+    new_h=math.ceil(img_h * scale)
+    new_w=math.ceil(img_w * scale)
     return reshape(img, (new_h, new_w))
 
 def random_horizontal_flip(img):
@@ -173,18 +216,18 @@ if __name__ == "__main__":
     from data_loader import ImageDataLoader
 
     def preprocess_image(img):
-        img = reshape(img, (256, 128))
         img = img_to_array(img)
-        img = image_pad(img, ((10, 10), (10, 10), (0, 0)))
-        img = image_crop(img, (256, 128), random_crop=True)
+        img = image_crop(img, target_shape='largest_square')
+        img = reshape(img, (256, 256))
+        img = random_flip(img, True, False)
         img = standardize(img)
         return img
 
+
     def test_preprocess_image():
-        data = ImageDataLoader(
-            '../Market/bounding_box_train', transforms=[preprocess_image], batch_size=32)
-        data_iter = data.flow()
-        batch = next(data_iter)
-        img = batch[0][0]
+        data = ImageDataLoader('.', transforms=[preprocess_image], p=4, k=10)
+        data_iter=data.flow()
+        batch=next(data_iter)
+        img=batch[0][0]
         array_to_img(img).save('test.jpg')
     test_preprocess_image()

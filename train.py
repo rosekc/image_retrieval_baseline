@@ -21,16 +21,17 @@ from tensorflow.python.keras.utils import losses_utils
 
 from data_loader import ImageDataLoader
 from model import build_baseline_model
-from transform import image_crop, image_pad, random_flip, reshape, standardize, suit_for_min_shape
+from transform import (image_crop, image_pad, random_flip, reshape,
+                       standardize, suit_for_min_shape)
 
 
 def preprocess_image(img):
     img = img_to_array(img)
-    img = image_crop(img, target_shape=(256, 256), random_crop=True)
+    img = image_crop(img, target_shape='random_square')
+    img = reshape(img, (256, 256))
     img = random_flip(img, True, False)
     img = standardize(img)
     return img
-
 
 class LearningRateScheduler:
     def __init__(self, optimizers, warm_up=True):
