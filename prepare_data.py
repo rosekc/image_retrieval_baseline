@@ -42,6 +42,9 @@ for root, dirs, files in os.walk(gt_dir):
                 img_path = f'{root_dir}/{img_label}/{line}.{extension}'
                 image_paths[label].append(img_path)
 
+for k in image_paths.keys():
+    image_paths[k] = np.unique(image_paths[k])
+
 query_paths = []
 query_crops = []
 query_labels = []
